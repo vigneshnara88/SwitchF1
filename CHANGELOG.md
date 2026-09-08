@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0
+
+- Make primary `boundary` matching insertion-aware (`switchf1-boundary-v2`).
+  A correct directed event can lie anywhere inside the reference boundary's
+  alignment interval when both aligned endpoint languages are correct.
+- Count every predicted transition before one-to-one matching. Extra transitions
+  remain false positives; deleted or wrongly labeled endpoints receive no credit.
+- Retain 0.2.0's default behavior as `boundary_exact` (`switchf1-boundary-v1`).
+  `anchored` (`ase-f1-v1`) remains unchanged.
+- Add adversarial and exhaustive short language-path tests, alignment traces,
+  and explicit audio-ground-truth and empirical-validation requirements.
+
+Migration: 0.2.0 `mode="boundary"` becomes 0.3.0 `mode="boundary_exact"` for
+reproduction. Rescore all systems with 0.3.0 `mode="boundary"` before comparing
+v2 values. A score change from changing the rule is not a model improvement.
+
 ## 0.2.0
 
 - Make aligned boundary-only F1 the API/CLI default, specification

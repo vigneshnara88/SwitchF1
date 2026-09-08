@@ -2,9 +2,9 @@
 
 **Measure whether a transcript preserves the correct language switches, not just how many switches it contains.**
 
-SwitchF1 is a dependency-free Python evaluator for **aligned language-switch boundary F1**. It compares reference and predicted text with explicit token-language labels. A correct event needs the same directed language change at the same boundary after text alignment. The neighboring words may be substituted: exact word recognition is not required by the primary boundary score. It requires no timestamps and makes no assumption that different languages use different scripts.
+SwitchF1 is a dependency-free Python evaluator for **aligned language-switch boundary F1**. It compares reference and predicted text with explicit token-language labels. A correct event needs the same directed language change inside the corresponding supported boundary interval after text alignment. Same-language insertions beside the switch do not automatically invalidate it; extra language transitions still count as errors. The neighboring words may be substituted: exact word recognition is not required by the primary boundary score. It requires no timestamps and makes no assumption that different languages use different scripts.
 
-Version **0.2.0 defaults to `boundary`**, specification `switchf1-boundary-v1`. The optional `anchored` mode additionally requires exact local words and retains specification `ase-f1-v1`. Version 0.1.0 defaulted to anchored mode; name the mode explicitly when comparing existing results.
+Version **0.3.0 defaults to `boundary`**, specification `switchf1-boundary-v2`. Use `boundary_exact` for the earlier exact-position rule (`switchf1-boundary-v1`) or `anchored` for exact positions plus exact local words (`ase-f1-v1`). See [migration notes](CHANGELOG.md); always record package version and mode.
 
 This is a proposed, documented evaluation method with executable tests. It is not an established industry standard or a claim to have invented code-switch evaluation. Its empirical validity across language pairs still needs independent annotation and human-agreement studies.
 
@@ -58,7 +58,7 @@ For corpus scoring, use `evaluate(records)` or the CLI. JSONL records have this 
 {"id":"clip-1","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}],"hypothesis":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}]}
 ```
 
-The scorer consumes labels; it does not guess languages. Obtain reference labels from reviewed annotations and hypothesis labels from independently validated text LID or a system that emits token-language labels. Do not copy labels from the reference to the hypothesis. English and French share a script, and Romanized Tamil is not automatically English.
+The scorer consumes labels; it does not guess languages. Obtain reference words and labels from annotations checked against the speech and hypothesis labels from independently validated text LID or a system that emits token-language labels. Do not copy labels from the reference to the hypothesis. English and French share a script, and Romanized Tamil is not automatically English.
 
 ## Where do the labels come from?
 
@@ -77,11 +77,11 @@ The reference contains one switch, English → French. The model preserved it an
 
 The full workflow is:
 
-1. **Get the words.** Keep the reference transcript and the model transcript separately.
+1. **Get the words.** Keep the reference transcript and the model transcript separately. For ASR evaluation, check the reference words and language choices against the audio; a model-generated reference is not automatically ground truth.
 2. **Label each token's language.** Review reference labels. For model output, use a validated contextual token-language identifier, independent human annotation, or labels actually produced by the model. Do not assign the reference's labels to the model output.
 3. **Align the words.** The evaluator finds an ordinary edit alignment, including inserted, deleted and substituted words.
 4. **Find language changes.** Adjacent non-neutral language labels that differ create a directed event, such as `en → fr`.
-5. **Check each event.** The primary score requires the same direction and the same aligned boundary. Exact local words are required only in optional anchored mode.
+5. **Check each event.** The primary score requires the same direction inside the reference boundary interval, supported by correct hypothesis languages at both aligned endpoints. Exact positions and words are required only in the stricter diagnostics.
 6. **Count correct, extra and missed events.** Convert the pooled counts to precision, recall and F1 with the formulas below.
 
 Tamil and English often use visibly different scripts, so a script rule can provide a convenient **proxy** for their labels. It can still fail on Romanized Tamil, borrowing or names. English and French both use Latin letters, so script cannot distinguish them; the words and their context must be considered. This package deliberately keeps the label source separate from scoring so it can support other language pairs correctly.
@@ -108,14 +108,14 @@ All reference clips count, including monolingual clips. A false switch on a mono
 
 After per-utterance lexical alignment, construct directed events from successive non-neutral language-labeled tokens. Match events one-to-one under the rules in [the method specification](docs/method.md).
 
-\[
+$$
 P=\frac{TP}{TP+FP},\quad R=\frac{TP}{TP+FN},\quad
 F_{1,\mathrm{boundary}}=\frac{2TP}{2TP+FP+FN}.
-\]
+$$
 
 Pool TP/FP/FN across the corpus before computing these ratios. Do not average utterance F1. Report F1 with precision, recall, event support, direction-wise counts, and false-switch rate on monolingual references. Pair it with WER/CER.
 
-The optional `--mode anchored` requires exact normalized words on both sides as well. Call that diagnostic **Anchored Switch Event F1 (ASE-F1)**. The boundary score measures aligned language structure; anchored F1 measures locally correct transcription of that structure. Both depend on lexical alignment and tokenization. Neither establishes pure acoustic language detection or switch timing.
+The optional `--mode boundary_exact` requires the exact pair of alignment positions and is called **exact-boundary F1**. `--mode anchored` also requires exact normalized words on both sides and is called **Anchored Switch Event F1 (ASE-F1)**. The boundary score measures aligned language structure; anchored F1 measures locally correct transcription of that structure. Both depend on lexical alignment and tokenization. Neither establishes pure acoustic language detection or switch timing.
 
 ## What if hallucinations move the correct switch far away?
 
@@ -128,18 +128,21 @@ Hypothesis: blah  blah  blah  we/en  say/en | bonjour/fr  maintenant/fr
 
 The switch still matches because `say` and `bonjour` occupy the same shared alignment columns. This remains true with 100 inserted prefix words. WER counts those 100 insertions; boundary F1 can still be perfect when the insertions introduce no additional language changes. That is why both metrics must be reported.
 
-There are limits. If extra language-bearing words appear **directly at the boundary**, the actual neighboring pair changes:
+Extra words directly beside the switch are handled using a supported interval:
 
 ```text
-Reference:  we/en  say/en    —       —    | bonjour/fr
-Hypothesis: we/en  say/en  blah/en  blah/en | bonjour/fr
+Reference:  we/en  say/en    —       —       —      bonjour/fr
+Hypothesis: we/en  say/en  blah/en  blah/en  salut/fr bonjour/fr
+                         <--- one en → fr transition --->
 ```
 
-The reference event is `say → bonjour`; the predicted event is `blah → bonjour`. Version 1 uses exact aligned boundary pairs, so this produces one FP and one FN. It does not silently slide the event across inserted language-bearing words. This conservative rule can reject a transition that a human judges preserved. It is an explicit limitation, not a claim that such outputs contain no useful switching information.
+The reference endpoint words `say` and `bonjour` align to output words labeled English and French respectively. The interval between them contains a direct English → French event, so **boundary F1 credits one correct switch**. WER still counts all three extra words. The earlier exact-position rule would reject this example; it remains available as `boundary_exact`.
 
-If a whole switched passage is hallucinated repeatedly, a reference switch can match only once; unmatched predicted switches are FP. Several identical passages can admit equally good text alignments. The fixed tie rule picks one deterministically; it cannot tell which copy was acoustically grounded.
+This is not permission to ignore invented switches. If inserted labels go `en → fr → en → fr`, only one `en → fr` event can match the reference; the other two events are FP. If they go `en → de → fr`, neither event is a direct `en → fr` switch, so both are FP and the reference switch is FN. If the aligned endpoint words have wrong language labels or are deleted, the interval is not supported and receives no credit.
 
-See [alignment and hallucination examples](docs/alignment.md) for formulas, executable examples, and why a future insertion-tolerant variant needs independent validation. No timestamps means a text offset cannot tell us whether a model switched too late **in the audio**.
+If a whole switched passage is hallucinated repeatedly, a reference switch can match only once; unmatched predicted switches are FP. Several identical passages can admit equally good text alignments. The fixed tie rule picks one deterministically; it cannot tell which copy was acoustically grounded. A long hallucination in the expected languages can still preserve the switch structure, so boundary F1 must be paired with WER/CER and hallucination diagnostics.
+
+See [alignment and hallucination examples](docs/alignment.md) for the full rule and executable examples. No timestamps means text offset cannot tell us whether a model switched too late **in the audio**. Audio-verified reference labels connect this measure to spoken switching, but the scorer cannot recover hidden model beliefs or validate the audio by itself.
 
 ## Related work and validity
 
@@ -152,4 +155,4 @@ These precedents rule out an unsupported claim that language-switch evaluation h
 
 ## Reproducibility
 
-Version `0.2.0`: primary specification `switchf1-boundary-v1`; optional anchored specification `ase-f1-v1`. CLI output includes the package version, input hash, counts, per-event matches, and alignment traces. Record the Git commit, annotation policy, tokenizer, reference/prediction hashes, and scoring mode with published results. The software is MIT licensed; the license does not grant rights to external evaluation data.
+Version `0.3.0`: primary specification `switchf1-boundary-v2`; optional exact-position specification `switchf1-boundary-v1`; optional anchored specification `ase-f1-v1`. CLI output includes the package version, input hash, counts, per-event matches, and alignment traces. Record the Git commit, annotation policy, tokenizer, reference/prediction hashes, and scoring mode with published results. The software is MIT licensed; the license does not grant rights to external evaluation data.

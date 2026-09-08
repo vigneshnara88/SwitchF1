@@ -1,5 +1,6 @@
 import copy
 import json
+import itertools
 from pathlib import Path
 import unittest
 from switchf1 import Token,score_utterance,evaluate,aggregate
@@ -90,7 +91,8 @@ class MetricTests(unittest.TestCase):
         self.assertEqual((anchored['tp'],anchored['fp'],anchored['fn']),(4,4,2))
     def test_boundary_default_and_specification(self):
         self.assertEqual(score_utterance(self.ref,self.ref)['mode'],'boundary')
-        self.assertEqual(evaluate([])['specification'],'switchf1-boundary-v1')
+        self.assertEqual(evaluate([])['specification'],'switchf1-boundary-v2')
+        self.assertEqual(evaluate([],mode='boundary_exact')['specification'],'switchf1-boundary-v1')
         self.assertEqual(evaluate([],mode='anchored')['specification'],'ase-f1-v1')
     def test_invalid_mode_even_with_empty_input(self):
         with self.assertRaises(ValueError):evaluate([],mode='typo')
@@ -102,10 +104,13 @@ class MetricTests(unittest.TestCase):
         self.assertEqual(result['ref_events'][0]['token_indices'],[1,2])
         self.assertEqual(result['hyp_events'][0]['token_indices'],[101,102])
         self.assertEqual(result['ref_events'][0]['position'],result['hyp_events'][0]['position'])
-    def test_boundary_adjacent_insertions_are_not_silently_ignored(self):
+    def test_same_language_boundary_insertions_preserve_switch(self):
         hyp=[self.ref[0]]+[Token('blah','en')]*100+[self.ref[1]]
         result=score_utterance(self.ref,hyp)
-        self.assertEqual((result['tp'],result['fp'],result['fn']),(0,1,1))
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(1,0,0))
+        self.assertEqual(result['matches_across_insertions'],1)
+        exact=score_utterance(self.ref,hyp,mode='boundary_exact')
+        self.assertEqual((exact['tp'],exact['fp'],exact['fn']),(0,1,1))
     def test_duplicate_passage_one_to_one_matching(self):
         ref=[Token('we','en'),Token('say','en'),Token('bonjour','fr'),Token('maintenant','fr')]
         result=score_utterance(ref,ref*3)
@@ -115,5 +120,56 @@ class MetricTests(unittest.TestCase):
         ref=[Token('we','en'),Token('say','en'),Token('bonjour','fr')]
         result=score_utterance(ref,[Token('hallo','de'),Token('extra','en')]+ref)
         self.assertEqual((result['tp'],result['fp'],result['fn']),(1,1,0))
+    def test_destination_language_insertions_preserve_switch(self):
+        result=score_utterance(self.ref,[self.ref[0]]+[Token('salut','fr')]*30+[self.ref[1]])
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(1,0,0))
+    def test_insertions_on_both_sides_preserve_one_switch(self):
+        hyp=[self.ref[0]]+[Token('extra','en')]*10+[Token('salut','fr')]*10+[self.ref[1]]
+        self.assertEqual(score_utterance(self.ref,hyp)['f1'],1)
+    def test_oscillating_insertions_keep_all_false_positives(self):
+        hyp=[self.ref[0],Token('salut','fr'),Token('extra','en'),self.ref[1]]
+        result=score_utterance(self.ref,hyp)
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(1,2,0))
+        self.assertEqual(result['matches'],[(0,0)])
+    def test_third_language_does_not_invent_direct_transition(self):
+        result=score_utterance(self.ref,[self.ref[0],Token('hallo','de'),self.ref[1]])
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(0,2,1))
+    def test_wrong_endpoint_label_cannot_be_rescued_by_inserted_switch(self):
+        hyp=[Token('hello','fr'),Token('extra','en'),Token('salut','fr'),self.ref[1]]
+        result=score_utterance(self.ref,hyp)
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(0,2,1))
+    def test_deleted_endpoint_is_not_bridged(self):
+        ref=[Token('we','en'),Token('say','en'),Token('bonjour','fr')]
+        hyp=[ref[0],ref[2]]
+        result=score_utterance(ref,hyp)
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(0,1,1))
+    def test_monolingual_reference_never_rewards_inserted_switches(self):
+        ref=[Token('hello','en'),Token('again','en')]
+        result=score_utterance(ref,[ref[0],Token('salut','fr'),ref[1]])
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(0,2,0))
+    def test_two_reference_boundaries_do_not_share_a_prediction(self):
+        ref=[Token('hello','en'),Token('bonjour','fr'),Token('again','en')]
+        hyp=[ref[0],Token('salut','fr'),ref[1],Token('extra','en'),ref[2]]
+        result=score_utterance(ref,hyp)
+        self.assertEqual((result['tp'],result['fp'],result['fn']),(2,0,0))
+        self.assertEqual(len({h for _,h in result['matches']}),2)
+    def test_all_short_inserted_language_paths_keep_event_counts(self):
+        for length in range(5):
+            for labels in itertools.product(['en','fr','de'],repeat=length):
+                hyp=[self.ref[0]]+[Token('extra'+str(i),lang) for i,lang in enumerate(labels)]+[self.ref[1]]
+                sequence=['en',*labels,'fr']
+                transitions=[(a,b) for a,b in zip(sequence,sequence[1:]) if a!=b]
+                expected_tp=int(('en','fr') in transitions)
+                result=score_utterance(self.ref,hyp)
+                self.assertEqual((result['tp'],result['fp'],result['fn']),
+                    (expected_tp,len(transitions)-expected_tp,1-expected_tp),labels)
+    def test_identical_text_without_insertions_agrees_with_exact_mode(self):
+        ref=[Token('hello','en'),Token('bonjour','fr'),Token('again','en')]
+        for labels in itertools.product(['en','fr','de',None],repeat=3):
+            hyp=[Token(t.text,lang) for t,lang in zip(ref,labels)]
+            current=score_utterance(ref,hyp)
+            exact=score_utterance(ref,hyp,mode='boundary_exact')
+            self.assertEqual([current[k] for k in ['tp','fp','fn']],
+                [exact[k] for k in ['tp','fp','fn']],labels)
 
 if __name__=='__main__':unittest.main()

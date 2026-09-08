@@ -4,7 +4,7 @@ type: software
 title: "SwitchF1: Aligned Language-Switch Boundary F1 for Labeled Text"
 authors:
   - name: "SwitchF1 contributors"
-version: 0.2.0
+version: 0.3.0
 date-released: 2026-09-08
 license: MIT
 repository-code: "https://github.com/vigneshnara88/SwitchF1"

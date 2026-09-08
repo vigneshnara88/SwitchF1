@@ -1,11 +1,12 @@
 """Aligned boundary F1, with optional lexical anchoring. See docs/method.md."""
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import unicodedata
 
 UNKNOWN = frozenset({"und", "mul", "ambiguous"})
-MODES = frozenset({"anchored", "boundary"})
-SPECIFICATIONS = {"boundary": "switchf1-boundary-v1", "anchored": "ase-f1-v1"}
+MODES = frozenset({"anchored", "boundary", "boundary_exact"})
+SPECIFICATIONS = {"boundary": "switchf1-boundary-v2",
+                  "boundary_exact": "switchf1-boundary-v1", "anchored": "ase-f1-v1"}
 
 @dataclass(frozen=True)
 class Token:
@@ -70,11 +71,33 @@ def _prf(tp,fp,fn):
         recall=tp/(tp+fn) if tp+fn else None,
         f1=2*tp/(2*tp+fp+fn) if 2*tp+fp+fn else None)
 
+def _boundary_matches(reference_events,hypothesis_events,alignment,hypothesis):
+    """Match inside each reference boundary's supported alignment interval.
+
+    Both reference endpoints must have aligned hypothesis tokens with the correct
+    languages. Count every hypothesis event first, then select at most one event
+    of the correct direction inside that interval. Reference boundary intervals
+    have disjoint interiors; earliest-event tie-breaking does not optimize text
+    alignment or discard false events.
+    """
+    matches=[];used=set()
+    for i,event in enumerate(reference_events):
+        left,right=event['position']
+        hl,hr=alignment[left][1],alignment[right][1]
+        if hl is None or hr is None:continue
+        if [hypothesis[hl].lang,hypothesis[hr].lang]!=event['direction']:continue
+        for j,predicted in enumerate(hypothesis_events):
+            pl,pr=predicted['position']
+            if j not in used and left<=pl<pr<=right and predicted['direction']==event['direction']:
+                matches.append((i,j));used.add(j);break
+    return matches
+
 def score_utterance(reference,hypothesis,*,mode="boundary",utterance_id=""):
     """Score explicit Token objects or {text,lang} dictionaries.
 
-    boundary (primary): same aligned location/direction; substitutions allowed.
-    anchored (diagnostic): additionally requires exact normalized lexical anchors.
+    boundary (primary): correct direction inside a supported aligned boundary gap.
+    boundary_exact: same two alignment columns, with substitutions allowed.
+    anchored: exact columns and exact normalized lexical anchors.
     """
     if mode not in MODES:raise ValueError(f"mode must be one of {sorted(MODES)}")
     ref,hyp=_tokens(reference,True),_tokens(hypothesis,False)
@@ -84,10 +107,11 @@ def score_utterance(reference,hypothesis,*,mode="boundary",utterance_id=""):
     re,he=_events(ref,rp),_events(hyp,hp)
     def key(e):
         return (tuple(e['position']),tuple(e['direction']))+((tuple(e['anchors']),) if mode=='anchored' else ())
-    predicted={key(e):j for j,e in enumerate(he)}
-    # Event positions are unique in an ordered token sequence, so exact matching
-    # is inherently one-to-one; no greedy or reference-assisted alignment search.
-    matches=[(i,predicted[key(e)]) for i,e in enumerate(re) if key(e) in predicted]
+    if mode=='boundary':
+        matches=_boundary_matches(re,he,alignment,hyp)
+    else:
+        predicted={key(e):j for j,e in enumerate(he)}
+        matches=[(i,predicted[key(e)]) for i,e in enumerate(re) if key(e) in predicted]
     tp=len(matches)
     rl={t.lang for t in ref if t.lang is not None and t.lang not in UNKNOWN}
     hl={t.lang for t in hyp if t.lang is not None and t.lang not in UNKNOWN}
@@ -105,6 +129,7 @@ def score_utterance(reference,hypothesis,*,mode="boundary",utterance_id=""):
         reference_no_switch=not bool(re),false_switch_on_no_switch=not re and bool(he),
         language_presence_exact=rl==hl,unknown_hypothesis_tokens=sum(t.lang in UNKNOWN for t in hyp),
         reference_tokens=len(ref),hypothesis_tokens=len(hyp),
+        matches_across_insertions=sum(re[i]['position']!=he[j]['position'] for i,j in matches),
         ref_events=re,hyp_events=he,matches=matches,alignment=alignment,token_language_counts=token_counts)
 
 def aggregate(rows):
@@ -135,6 +160,7 @@ def aggregate(rows):
         false_switch_on_no_switch_rate=false_no_switch/no_switch if no_switch else None,
         language_presence_exact_rate=sum(r['language_presence_exact'] for r in rows)/len(rows) if rows else None,
         unknown_hypothesis_tokens=sum(r['unknown_hypothesis_tokens'] for r in rows),by_direction=per_direction,
+        matches_across_insertions=sum(r.get('matches_across_insertions',0) for r in rows),
         aligned_token_language=dict(micro=token_micro,macro_f1=token_macro,per_language=token_scores))
 
 def evaluate(records,*,mode="boundary"):
