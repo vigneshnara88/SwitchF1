@@ -8,13 +8,37 @@ Version **0.3.0 defaults to `boundary`**, specification `switchf1-boundary-v2`. 
 
 This is a proposed, documented evaluation method with executable tests. It is not an established industry standard or a claim to have invented code-switch evaluation. Its empirical validity across language pairs still needs independent annotation and human-agreement studies.
 
-## Purpose
+## Background: speech across languages
 
-Speech systems should preserve how multilingual speakers move between languages, including English and other languages. This matters in communities where everyday conversation, education, media and online communication involve multiple languages, including younger multilingual speakers. The motivation does not depend on an unverified claim that all young people code-switch more often or that one global trend applies everywhere.
+Multilingual speakers can move between languages within a conversation, a sentence, or even a short phrase. This practice, commonly called **code-switching**, is part of the speech that ASR systems need to represent. A speaker might use one language for the surrounding sentence and another for a familiar expression, a technical term, a quotation, or a change in emphasis. Research on speech transcripts documents motivations including expressing emotion, borrowing terms, humor and introducing a topic. [Belani and Flanigan, 2022](https://arxiv.org/abs/2212.08565)
 
-Overall transcription accuracy can hide failures around language transitions. SwitchF1 formalizes a narrower question: **does the recognized text preserve the reference's directed language transition at the corresponding aligned place?**
+**Our motivating assumption is that younger multilingual speakers in communities with strong exposure to English may code-switch more frequently than older generations**, particularly as English becomes part of education, entertainment, social media and peer interaction. A person may speak a local language at home, encounter English terminology in class or online, and bring both into everyday conversation. Speech technology should be designed and evaluated for that mixed-language use. Research on multilingual youth communication provides context for these practices; the age comparison here is a project assumption, not an effect measured by SwitchF1. [Multilingual Youth Practices in Computer Mediated Communication](https://www.cambridge.org/core/books/multilingual-youth-practices-in-computer-mediated-communication/190771570DA07D9607A0B8987F2432B7)
 
-Potential downstream uses include evaluating multilingual captions, language-dependent search and indexing, vocabulary routing, bilingual educational tools, and conversation systems that should preserve a speaker's language choices. These are applications of detecting switches. A high score alone does not demonstrate understanding of social switching norms, speaker intent, identity, or pragmatics.
+English–Tamil speech motivated this project, but the evaluation question applies to English–Spanish, English–Hindi, English–Mandarin, shared-script pairs such as English–French, and combinations without English. It also applies when a speaker uses more than two languages. Those settings require explicit language labels: identifying the alphabet alone cannot distinguish languages that share a writing system. Earlier work on multilingual word-level language identification demonstrates the importance of handling more than one fixed language pair. [Rijhwani et al., ACL 2017](https://aclanthology.org/P17-1180/)
+
+For a recognizer, being able to transcribe each language separately does not establish that it preserves the places where a speaker moves between them. A system may omit a switched phrase, render it in the surrounding language, or introduce a change that was never spoken. These are concrete behaviors that an evaluation should expose. If a reference contains only a short span in its less frequent language, an overall average may give little visibility into what happened at that transition.
+
+## Purpose: measure preservation of language changes
+
+SwitchF1 formalizes the question: **when the speaker changes language, does the model's output preserve that directed transition at the corresponding place?** For speech-model evaluation, the reference transcript and its token-language labels must be checked against the audio. The evaluator then compares that reference with independently labeled model output.
+
+The primary score separates **switch preservation** from **exact word recognition**. If the speaker changes from English to French and the output preserves that change using incorrect English and French words, the switch should receive credit. WER and CER still penalize the wrong words. If the output stays entirely in English, invents an extra change, or reverses the transition, the switch score should reflect that failure. This distinction lets us ask what a model got right about the multilingual structure even when transcription is imperfect.
+
+Precision asks how many predicted transitions correspond to real reference transitions. Recall asks how many reference transitions were preserved. F1 balances the two, so a system cannot obtain a perfect score merely by generating many language changes. Matching is tied to text alignment, and each reference event can receive credit only once. Same-language insertions beside a supported switch can preserve its boundary credit while remaining transcription errors.
+
+The purpose of publishing SwitchF1 is to make that definition **explicit, reproducible and reusable**: shared formulas, an executable evaluator, inspectable alignments, and tests for cases that otherwise lead to inconsistent scoring. The same rule should apply to every model and language pair under a declared annotation policy. SwitchF1 complements corpus WER/CER, token-language scores and hallucination diagnostics. It gives a focused view of switching behavior that an overall transcription score alone does not supply.
+
+## Why preserving switches matters
+
+Potential downstream applications include:
+
+- **Multilingual captions and transcripts:** assess whether the output preserves the speaker's language choices, including short switched phrases that a dominant-language average can obscure.
+- **Search and retrieval:** evaluate the language boundaries supplied to systems that select language-specific tokenization, dictionaries or indexes for different spans.
+- **Conversational assistants:** assess whether an ASR front end preserves the language changes that a downstream system could use when interpreting an utterance or choosing a response language.
+- **Bilingual learning and classroom tools:** support evaluation of transcripts where explanations, examples and subject terminology move between languages, without automatically treating mixing as a mistake.
+- **Research on switching norms:** check whether a transcript retains the transitions needed for later analysis of emphasis, quotation, topic changes and social context. Separate annotated tasks are needed to evaluate those meanings themselves.
+
+Preserving an observable switch is a useful step toward systems that can respond appropriately to multilingual communication. SwitchF1 measures that step. Understanding why someone switched, what the change signals socially, or whether a reply respects local switching norms requires additional contextual evaluation. The metric is intended to make progress on this specific capability measurable while keeping those broader research questions open.
 
 ## Install and run
 
