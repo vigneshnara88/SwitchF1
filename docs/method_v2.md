@@ -1,4 +1,7 @@
-# SwitchF1 boundary v3: complete text-only specification
+# SwitchF1 boundary v2: complete text-only specification
+
+Archived 0.3.0 specification. Its `boundary` mode is now available as
+`boundary_v2`; the current default is [v3](method.md).
 
 ## Inputs and claim
 
@@ -11,7 +14,7 @@ $$
 
 Each token contains text and an explicit language ID. IDs are fixed semantic names, preferably BCP-47 tags under one documented granularity policy. Do not permutation-map language names to maximize scores. Any number of languages is supported. Tokenization and contextual language annotation are benchmark inputs, not inferred from the model ranking.
 
-Primary claim: preservation of directed language-switch boundaries at corresponding aligned positions in recognized text. The default `boundary` mode uses specification `switchf1-boundary-v3`. Within-run deletions and boundary-adjacent insertions are tolerated. `boundary_v2` preserves the previous insertion-only rule ([v2 specification](method_v2.md)). Exact local word recognition is not required, but lexical edit alignment still determines positional correspondence. For language-identification experiments on identical text tokens, alignment is trivial. `boundary_exact` preserves the exact-position v1 criterion (`switchf1-boundary-v1`); `anchored` additionally requires correctly recognized local words at those exact positions (`ase-f1-v1`). Reference words and language labels must be independently checked against the speech when making an ASR switching claim; the algorithm cannot authenticate the audio provenance of a transcript.
+Primary claim: preservation of directed language-switch boundaries at corresponding aligned positions in recognized text. The default `boundary` mode uses specification `switchf1-boundary-v2`. Exact local word recognition is not required, but lexical edit alignment still determines positional correspondence. For language-identification experiments on identical text tokens, alignment is trivial. `boundary_exact` preserves the exact-position v1 criterion (`switchf1-boundary-v1`); `anchored` additionally requires correctly recognized local words at those exact positions (`ase-f1-v1`). Reference words and language labels must be independently checked against the speech when making an ASR switching claim; the algorithm cannot authenticate the audio provenance of a transcript.
 
 ## Normalization and alignment
 
@@ -33,26 +36,9 @@ Construct hypothesis events identically. The first two fields identify the align
 
 ## Primary matching: a supported boundary interval
 
-For a reference event from language A to B, retain the **original** language runs:
-maximal stretches of the same language after ignoring explicitly neutral tokens.
-Let its source and destination token indices be i and k. Let q(c) be the
-hypothesis token in alignment column c, or a gap when absent.
-
-Choose the nearest surviving reference token on each side, inside those runs:
-
-$$
-i^*=\max\{j\le i: j\text{ belongs to the source run},\ q(a_R(j))\ne\varnothing\},
-$$
-$$
-k^*=\min\{j\ge k: j\text{ belongs to the destination run},\ q(a_R(j))\ne\varnothing\}.
-$$
-
-Only language-bearing reference tokens are candidates. Set L=a_R(i*) and
-U=a_R(k*). If either set is empty, this reference event cannot match. Do not
-collapse away a fully deleted language run or construct replacement reference
-events. Select support **without consulting hypothesis language labels**: a
-surviving wrong-language or neutral hypothesis token blocks matching; do not
-search farther for a more favorable label.
+For a reference event from language A to B, let its endpoint alignment columns
+be L and U, with L < U. Let q(c) be the hypothesis token in alignment column c,
+or a gap if no hypothesis token is present.
 
 A hypothesis event with endpoint columns l and u is eligible exactly when:
 
@@ -64,17 +50,18 @@ $$
 L\le l<u\le U,\qquad \operatorname{direction}(e_H)=(A,B).
 $$
 
-Both adjacent reference language runs must therefore have surviving aligned
-support with correct hypothesis languages and a direct hypothesis event inside
-the interval. Exact lexical equality is not required. Inside this expanded
-interval, language-bearing reference tokens other than the support endpoints
-are deleted. Neutral tokens and hypothesis insertions can also occur there.
+Thus both ends of the reference boundary must be supported by aligned hypothesis
+tokens of the correct languages, and a real directed hypothesis event must occur
+inside that boundary interval. Exact lexical equality is not required. Because
+the reference endpoints are successive language-bearing tokens, the interval has
+no other language-bearing reference token inside it. It can contain insertion
+columns and explicitly neutral reference tokens.
 
-This tolerates missing words at the end of A or start of B while still requiring
-that both language stretches survive. For example, `hello my name is sam/en
-ennaku/ta` and `hello my name/en ennaku/ta` preserve one event. WER still counts
-the two missing words. No word-distance threshold is tuned. A wrong surviving
-label is not treated as a deletion, and a fully missing run cannot be crossed.
+This credits extra A-language words before the transition, extra B-language words
+after it, or both, if the directed transition is preserved. It does **not** search
+arbitrarily far through other language-bearing reference words. There is no
+word-distance threshold to tune: interval limits come from the fixed edit
+alignment. Insertion length affects WER, not eligibility by itself.
 
 Count every hypothesis event before matching. Process reference events in text
 order and match the first eligible unused hypothesis event in each interval.
@@ -84,22 +71,18 @@ chooses among events within one interval. This realizes one-to-one matching
 without optimizing text alignment to improve F1. Extra forward/reverse switches
 remain FP, including those wholly inside the insertion interval. If the sequence
 is A → C → B and contains no direct A → B event, it receives no A → B credit.
-If either adjacent run has no surviving support, or a selected support token has the wrong hypothesis language, there is no match.
+If either endpoint is deleted or assigned the wrong language, there is no match.
 
-The optional `boundary_v2` mode uses the original event endpoints with no deletion expansion. It reproduces the v2 matches and counts. The optional `boundary_exact` mode requires equality of both event columns and
+The optional `boundary_exact` mode requires equality of both event columns and
 the ordered language labels. Optional `anchored` additionally requires equality
 of the normalized words. These reproduce v1 and ASE-F1 semantics respectively.
 An unmatched reference event is FN; an unmatched predicted event is FP.
 
-Returned traces retain original token indices, original event positions, alignment
-columns, selected `supported_intervals` (null when a run has no survivor), and
-one-to-one matches. `matches_across_deletions` counts matched events using
-expanded support. `matches_with_displaced_boundaries` counts matches whose
-original event positions differ. The legacy `matches_across_insertions` counts
-position differences without deletion expansion, including neutral-token gaps;
-it is not a count of inserted words. These diagnostics can overlap in meaning
-and should not be added as separate error categories.
-See [worked examples](alignment.md) and the [scenario audit](scenario_audit.md).
+Returned event traces retain actual token indices and alignment positions.
+`matches_across_insertions` counts matches whose endpoint positions differ under
+the interval rule; it also includes displacement across explicitly neutral tokens.
+Report this alongside exact-boundary F1 to show sensitivity to the relaxation.
+See [worked examples](alignment.md).
 
 ## Unknowns, neutrality and speaker scope
 
@@ -132,8 +115,7 @@ The package additionally computes **aligned token-language** precision/recall/F1
 ## Known limits
 
 - Reference LID errors directly corrupt the score. Script-based labeling is only a restricted proxy.
-- The primary mode tolerates insertions and within-run deletions only inside a supported interval. It rejects wholly deleted runs and surviving mislabeled support; it does not solve all ASR alignment failures. Exact-boundary and anchored modes retain stricter positional requirements. Lexical variants can affect alignment in every mode.
-- Inserted words and omitted words can align as substitutions. A wrong-language substitute then blocks support even when a human could recognize the broad switch. Changed neutral punctuation can cause a similar alignment failure. These are documented counterexamples, not silently repaired by optimizing language alignment.
+- The primary mode permits insertion displacement only inside a supported reference boundary interval. It still rejects deleted/mislabeled reference endpoints; it does not solve all ASR alignment failures. Exact-boundary and anchored modes retain stricter positional requirements. Lexical variants can affect alignment in every mode.
 - A long hallucination using the expected languages can preserve the supported transition and receive boundary credit. This is deliberate separation of switching from transcription fidelity, not evidence that the hallucinated words were spoken. Always report WER/CER and hallucination diagnostics.
 - The interval rule was selected from semantic counterexamples and needs independent bilingual human validation. Robustness tests do not establish acoustic or sociolinguistic construct validity.
 - Repeated identical passages can have multiple optimal alignments. Fixed tie-breaking is reproducible but cannot identify the acoustically correct occurrence. A long same-language hallucination can leave boundary F1 perfect; WER/CER must accompany it.

@@ -1,117 +1,128 @@
-# Alignment, hallucinations, and boundary-only F1 v2
+# Alignment, omissions and multiple switches: boundary v3
 
-SwitchF1 compares **corresponding text positions after alignment**, not the
-original word numbers. A language change at hypothesis word 103 can match a
-reference change at word 3 if the previous 100 hypothesis words are insertions.
-No maximum raw offset is imposed.
+The score asks whether **the corresponding directed language changes survive in
+recognized text**. It does not compare raw word numbers or require the words
+beside a switch to be transcribed exactly.
 
-## How correspondence is established
+## Follow a simple omission
 
-Normalize token text with NFC and lowercase. Given reference tokens R and
-hypothesis tokens H, compute the word edit-distance table:
+Every word below has a declared language. `ennaku` is Tamil written in Latin
+letters; the evaluator consumes that explicit label.
 
-$$
-D(i,j)=\min\{D(i-1,j)+1,\ D(i,j-1)+1,\ D(i-1,j-1)+[\nu(r_i)\ne\nu(h_j)]\}.
-$$
-
-The boundary conditions are D(i,0)=i and D(0,j)=j. Trace back a minimum-cost path;
-ties prefer diagonal, deletion, insertion. This produces shared columns with a
-reference token, a hypothesis token, or a gap. Language labels do not enter the
-distance calculation or tie-breaking.
-
-For each sequence, identify successive non-neutral tokens whose language labels differ. Count **all** such directed events before matching.
-
-For each reference A → B boundary, use the alignment columns of its two endpoint tokens as an interval. Both endpoints must align to hypothesis tokens labeled A and B respectively. Match at most one actual A → B hypothesis event wholly inside that interval. This allows same-language insertions on either side without treating the switch as wrong. It does not cross other language-bearing reference words or award credit when endpoint labels are wrong/deleted.
-
-If several A → B events occur inside that interval, choose the earliest and count all unmatched events as FP. Reference intervals have disjoint interiors, so one predicted event cannot support two reference events. The full eligibility formulas are in [method.md](method.md). WER/CER continue to count every word error; no repetition is removed.
-
-The optional `boundary_exact` mode instead requires both event endpoint columns to be equal. The optional `anchored` mode also requires the corresponding words to be equal. These preserve the earlier scoring definitions for comparison.
-
-## Executable examples
-
-```python
-from switchf1 import Token, score_utterance
-
-reference = [Token("we", "en"), Token("say", "en"),
-             Token("bonjour", "fr"), Token("maintenant", "fr")]
-
-# A large offset in raw word numbers is absorbed by insertion gaps.
-shifted = [Token("blah", "en")] * 100 + reference
-score = score_utterance(reference, shifted, mode="boundary")
-assert (score["tp"], score["fp"], score["fn"]) == (1, 0, 0)
-assert score["ref_events"][0]["token_indices"] == [1, 2]
-assert score["hyp_events"][0]["token_indices"] == [101, 102]
-assert score["ref_events"][0]["position"] == score["hyp_events"][0]["position"]
-
-# Same-language insertions at the boundary still preserve the switch in v2.
-adjacent = reference[:2] + [Token("blah", "en")] * 100 + reference[2:]
-score = score_utterance(reference, adjacent)
-assert (score["tp"], score["fp"], score["fn"]) == (1, 0, 0)
-# The old exact-position diagnostic intentionally differs.
-exact = score_utterance(reference, adjacent, mode="boundary_exact")
-assert (exact["tp"], exact["fp"], exact["fn"]) == (0, 1, 1)
-
-# Destination-language insertions also preserve the directed transition.
-destination = reference[:2] + [Token("salut", "fr")] * 100 + reference[2:]
-assert score_utterance(reference, destination)["f1"] == 1.0
-
-# Extra oscillations are counted, not removed before evaluating switches.
-oscillating = reference[:2] + [Token("salut", "fr"), Token("extra", "en")] + reference[2:]
-score = score_utterance(reference, oscillating)
-assert (score["tp"], score["fp"], score["fn"]) == (1, 2, 0)
-
-# A third-language detour does not count as a direct English → French event.
-detour = reference[:2] + [Token("hallo", "de")] + reference[2:]
-score = score_utterance(reference, detour)
-assert (score["tp"], score["fp"], score["fn"]) == (0, 2, 1)
-
-# Repeated passages cannot repeatedly claim the same reference event.
-score = score_utterance(reference, reference * 3)
-assert (score["tp"], score["fp"], score["fn"]) == (1, 4, 0)
-assert score["f1"] == 1 / 3
+```text
+Reference:  hello/en my/en name/en is/en sam/en | ennaku/ta
+Output:     hello/en my/en name/en   —     —   | ennaku/ta
 ```
 
-The prefix example has 100 word insertions and 2500% WER despite perfect boundary
-F1. The score intentionally evaluates switch structure, not all transcript errors.
-For a pure language detector evaluated on a fixed transcript, instead supply the
-same words on both sides and compare reference versus predicted token labels.
+V2 required aligned output support for `sam` and `ennaku`, so it rejected the
+switch. V3 moves the left support back to `name`, the nearest surviving word in
+the same original English stretch. It finds one English → Tamil event between
+`name` and `ennaku`: TP=1, FP=0, FN=0, F1=100%. WER counts two deletions.
 
-## What exact alignment cannot establish
+With `hello/en ennaku/ta name/en sam/en`, ordinary lexical alignment places the
+Tamil token against an English reference word and deletes the final Tamil token.
+Neither predicted transition preserves the supported reference switch:
+TP=0, FP=2, FN=1, F1=0%. Merely containing both languages is not sufficient.
 
-Repeated words can admit several equally optimal alignments. In the repeated
-passage example, the current tie rule aligns the reference to the last identical
-copy. Choosing the first copy would not establish which one corresponds to the
-audio either. The evaluator exposes alignment/event traces and counts every extra
-event, but does not claim acoustic provenance.
+## Follow several switches
 
-If a model produces a correct switch far later **in audio time**, text alone cannot
-measure that delay. No timing claim is made. A reference transcript and its
-language labels must be checked against audio to evaluate actual spoken switches.
-When evaluating switching within a speaker, split different speakers' streams;
-an English-speaking person followed by a French-speaking person is a different
-phenomenon from one person changing languages.
+```text
+Reference: hello/en friend/en | ennaku/ta venum/ta | coffee/en today/en
+Output:    hello/en    —      |     —     venum/ta |     —     today/en
+```
 
-## Limits of the insertion-aware rule
+Each original reference language stretch has a survivor. Match English → Tamil
+and Tamil → English separately: TP=2, FP=0, FN=0. The middle `venum` token supports
+two **different** transitions; no predicted event is reused.
 
-- **Expected-language hallucinations:** A long invented span in the expected
-  languages may preserve a supported boundary and earn switch credit. That does
-  not make the invented words correct. WER/CER and hallucination diagnostics are
-  required alongside F1.
-- **Deletion:** If either reference endpoint is deleted, v2 cannot establish the
-  required endpoint support. A human may still hear/preserve a switch nearby;
-  this conservative failure remains explicit.
-- **Mislabeled endpoints:** A matching-direction event inside the interval cannot
-  rescue wrong labels on the aligned endpoints. This prevents an invented switch
-  from masking an incorrectly represented reference transition.
-- **Reference neutrality:** A reference interval may contain explicitly neutral
-  words. Their policy must be fixed; labeling real language-bearing content
-  neutral can hide distinctions and invalidate the interpretation.
-- **Repeated text:** Equal-cost edit paths can align to different repeated copies.
-  Do not pick the path that maximizes F1. The deterministic lexical tie rule
-  cannot establish which copy was acoustically grounded.
+- Delete all Tamil words: no predicted switches, TP=0, FP=0, FN=2.
+- Omit the final English stretch: TP=1, FP=0, FN=1, F1=66.7%.
+- Preserve the reference and add a Tamil tail: TP=2, FP=1, FN=0, F1=80%.
+- Insert a Tamil → English detour before the real Tamil stretch: TP=2, FP=2,
+  FN=0, F1=66.7%.
+- Repeat this entire passage three times: six predicted events, only two matches;
+  TP=2, FP=4, FN=0, F1=50%.
 
-The v2 rule was specified to address semantic counterexamples before rescoring the
-existing models. This is still development of a proposed metric, not an
-independent validation study. Evaluate it against blinded bilingual switch
-judgments on held-out audio/transcripts, alongside the exact-position diagnostic,
-before claiming robust human agreement across languages. See [validation.md](validation.md).
+A completely absent language run cannot be skipped to create a replacement
+reference event. With reference `a/en b/ta c/en d/ta e/en f/ta` and output
+`a/en b/ta e/en f/ta`, only the outer two events match. The middle predicted
+Tamil → English event spans three original reference boundaries; the conservative
+rule cannot assign it to one locally. TP=2, FP=1, FN=3, F1=50%. A collapsed
+language-sequence score would give a different, less location-sensitive answer.
+
+## The matching rule, in order
+
+1. Align token text using unit-cost Levenshtein distance, NFC and lowercase.
+   Backtracking ties prefer diagonal, deletion, insertion. Language labels do
+   not choose or optimize the alignment.
+2. Count every directed language change on both sides, ignoring explicitly
+   neutral tokens under a fixed annotation policy.
+3. For each original reference boundary, find the nearest surviving reference
+   word backwards in the source language run and forwards in the destination
+   run. Skip deleted words; never cross another reference language run.
+4. Check the output languages aligned to these two selected words. Both must be
+   correct. Stop at a wrong surviving label; do not search farther to find a
+   favorable match.
+5. Match the earliest unused hypothesis event of the same direction entirely
+   between those support columns. All other hypothesis events remain FP; all
+   unmatched original reference events remain FN.
+
+Support intervals have disjoint interiors: a run's first surviving token supports
+its incoming switch and its last supports its outgoing switch. Those two tokens
+occur in that order, or are the same token. Thus an event cannot match two
+reference boundaries. See [the formulas](method.md).
+
+## Hallucinations and repetitions
+
+A 100-word English insertion before a supported English → Tamil switch can leave
+F1 perfect. So can repeated Tamil words within the Tamil stretch. These add word
+errors, but do not invent language transitions. No raw offset cutoff or repeat
+stripping is used.
+
+Invented `en → ta → en → ta` inside one supported English → Tamil interval yields
+one TP and two FP. Invented `en → fr → ta` has no direct English → Tamil event:
+zero TP, two FP and one FN. Matching direction as well as location prevents
+credit for that third-language detour.
+
+## Known failures: text cannot settle every case
+
+The executable audit includes **two cases where a reasonable switch-preservation
+judgment differs from the conservative lexical-alignment result**:
+
+- Reference `a/en b/en c/ta d/ta`; output `a/en noise/en ×128 d/ta`. Some `noise`
+  tokens align as substitutions for omitted reference words, including `c/ta`.
+  V3 sees surviving English support where Tamil was required and rejects the
+  switch. Broad English → Tamil structure survives, but this alignment cannot
+  establish its local correspondence.
+- Changed neutral punctuation can align to a deleted language-bearing word,
+  likewise blocking support. Freeze punctuation tokenization; do not change it
+  separately for individual systems to improve their scores.
+
+These limitations are retained in tests and reported openly. Allowing any
+correct-language span anywhere in the output would fix these examples at the
+cost of falsely rewarding misplaced switches. Choosing the edit alignment that
+maximizes F1 would also bias the metric toward agreement.
+
+Repeated identical words/passages admit ambiguous alignments. The deterministic
+rule is reproducible, but cannot identify which repetition was actually spoken.
+An invented passage in the expected languages may earn switch credit even if
+all its words are wrong. That is why F1 must accompany WER/CER and raw-output
+hallucination diagnostics.
+
+For **actual spoken switches**, use audio-verified reference transcripts and
+language labels, independently label the output, and split speaker streams when
+the claim concerns switching within one speaker. No timestamps means no claim
+about acoustic switch timing, internal language detection, or understanding why
+the speaker switched. See the [scenario audit](scenario_audit.md) and
+[human validation plan](validation.md).
+
+## Reproduce earlier definitions
+
+- `boundary`: current v3, within-run deletion and insertion tolerance.
+- `boundary_v2`: original endpoint support, insertion tolerance only;
+  [archived alignment](alignment_v2.md), [archived specification](method_v2.md).
+- `boundary_exact`: v1, exact two alignment columns, substitutions allowed.
+- `anchored`: exact columns and exact normalized local words.
+
+Version and mode must accompany every result. WER/CER normalization and
+aggregation are separate choices and do not change when revising SwitchF1.

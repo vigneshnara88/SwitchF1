@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Default `boundary` now uses `switchf1-boundary-v3`: tolerate deleted boundary words only within the original adjacent reference language runs. Nearest surviving support is chosen without consulting hypothesis labels.
+- Entirely absent runs, wrong surviving support labels, wrong directions and extra events remain errors. Alignment and event construction are unchanged.
+- Retain the exact 0.3.0 event-matching behavior as `boundary_v2`; `boundary_exact` and `anchored` remain unchanged.
+- Add 34 semantic scenarios, including explicit known alignment limitations, and exhaustive pure-deletion checks against an independent run-survival oracle. Expose support intervals and deletion diagnostics.
+
+Migration: use `mode="boundary_v2"` to reproduce 0.3.0 primary scores. Rescore every system under v3 before comparing; never interpret a scoring revision as a model improvement. The method remains experimental pending independent human validation.
+
 ## 0.3.0
 
 - Make primary `boundary` matching insertion-aware (`switchf1-boundary-v2`).

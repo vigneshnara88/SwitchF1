@@ -91,7 +91,7 @@ class MetricTests(unittest.TestCase):
         self.assertEqual((anchored['tp'],anchored['fp'],anchored['fn']),(4,4,2))
     def test_boundary_default_and_specification(self):
         self.assertEqual(score_utterance(self.ref,self.ref)['mode'],'boundary')
-        self.assertEqual(evaluate([])['specification'],'switchf1-boundary-v2')
+        self.assertEqual(evaluate([])['specification'],'switchf1-boundary-v3')
         self.assertEqual(evaluate([],mode='boundary_exact')['specification'],'switchf1-boundary-v1')
         self.assertEqual(evaluate([],mode='anchored')['specification'],'ase-f1-v1')
     def test_invalid_mode_even_with_empty_input(self):
@@ -138,11 +138,12 @@ class MetricTests(unittest.TestCase):
         hyp=[Token('hello','fr'),Token('extra','en'),Token('salut','fr'),self.ref[1]]
         result=score_utterance(self.ref,hyp)
         self.assertEqual((result['tp'],result['fp'],result['fn']),(0,2,1))
-    def test_deleted_endpoint_is_not_bridged(self):
+    def test_deleted_endpoint_bridged_only_in_v3(self):
         ref=[Token('we','en'),Token('say','en'),Token('bonjour','fr')]
         hyp=[ref[0],ref[2]]
-        result=score_utterance(ref,hyp)
+        result=score_utterance(ref,hyp,mode='boundary_v2')
         self.assertEqual((result['tp'],result['fp'],result['fn']),(0,1,1))
+        self.assertEqual(score_utterance(ref,hyp)['tp'],1)
     def test_monolingual_reference_never_rewards_inserted_switches(self):
         ref=[Token('hello','en'),Token('again','en')]
         result=score_utterance(ref,[ref[0],Token('salut','fr'),ref[1]])
