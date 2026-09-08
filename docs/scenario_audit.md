@@ -66,3 +66,593 @@ language-sequence/count agreement: it would reward misplaced boundaries.
 This suite establishes reproducible behavior on declared examples, not that
 the metric recognizes spoken switches perfectly. [Independent audio and
 bilingual validation](validation.md) is still required.
+
+## Every example, with its complete labeled text
+
+Expand any case below. Each `word/language` entry labels one token;
+`neutral` denotes an explicitly neutral token and `(empty)` means no tokens.
+Long loops are shown in full so the displayed input is reproducible.
+
+To inspect every alignment column and matched event as JSON:
+
+```bash
+switchf1 examples/adversarial.jsonl --output results/adversarial.json
+```
+
+<details>
+<summary>user_missing_is_sam — F1 100.0%</summary>
+
+```text
+Reference: hello/en my/en name/en is/en sam/en ennaku/ta
+Output:    hello/en my/en name/en ennaku/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Omitting English words preserves the English-to-Tamil transition.
+
+</details>
+
+<details>
+<summary>user_misplaced_tamil — F1 0.0%</summary>
+
+```text
+Reference: hello/en my/en name/en is/en sam/en ennaku/ta
+Output:    hello/en ennaku/ta name/en sam/en
+```
+
+Reference switches: **1**. Output switches: **2**.
+Correct: **0**; extra: **2**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 2 + 1) = 0.0%.
+
+**Explanation:** Tamil appears inside the aligned English span and adds a return to English.
+
+</details>
+
+<details>
+<summary>wrong_words_correct_languages — F1 100.0%</summary>
+
+```text
+Reference: hello/en my/en name/en is/en sam/en ennaku/ta
+Output:    hello/en my/en name/en is/en john/en unakku/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Substitutions with correct languages still preserve the boundary.
+
+</details>
+
+<details>
+<summary>all_words_wrong — F1 100.0%</summary>
+
+```text
+Reference: one/en two/en மூன்று/ta நான்கு/ta
+Output:    alpha/en beta/en ஐந்து/ta ஆறு/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Even all-wrong words can preserve aligned language structure; not acoustic proof.
+
+</details>
+
+<details>
+<summary>delete_first_tamil_word — F1 100.0%</summary>
+
+```text
+Reference: hello/en ennaku/ta venum/ta
+Output:    hello/en venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** A surviving Tamil word supports the destination run.
+
+</details>
+
+<details>
+<summary>delete_both_boundary_words — F1 100.0%</summary>
+
+```text
+Reference: hello/en sam/en ennaku/ta venum/ta
+Output:    hello/en venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Both adjacent language stretches survive despite endpoint deletions.
+
+</details>
+
+<details>
+<summary>two_correct — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **2**.
+Correct: **2**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 0 + 0) = 100.0%.
+
+**Explanation:** English-to-Tamil and Tamil-to-English are separate events.
+
+</details>
+
+<details>
+<summary>two_correct_with_deletions — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en venum/ta today/en
+```
+
+Reference switches: **2**. Output switches: **2**.
+Correct: **2**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 0 + 0) = 100.0%.
+
+**Explanation:** Each original language run survives; both transitions remain.
+
+</details>
+
+<details>
+<summary>middle_single_survivor — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **2**.
+Correct: **2**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 0 + 0) = 100.0%.
+
+**Explanation:** One surviving middle token can support two distinct events.
+
+</details>
+
+<details>
+<summary>delete_entire_middle_run — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **0**.
+Correct: **0**; extra: **0**; missed: **2**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 0 + 2) = 0.0%.
+
+**Explanation:** The entire Tamil stretch disappears; both switches are missed.
+
+</details>
+
+<details>
+<summary>translate_middle_run — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en i/en want/en coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **0**.
+Correct: **0**; extra: **0**; missed: **2**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 0 + 2) = 0.0%.
+
+**Explanation:** English rendering of Tamil removes both language changes.
+
+</details>
+
+<details>
+<summary>delete_final_run — F1 66.7%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en ennaku/ta venum/ta
+```
+
+Reference switches: **2**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **1**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 1) = 66.7%.
+
+**Explanation:** First switch preserved, return to English missed.
+
+</details>
+
+<details>
+<summary>delete_initial_run — F1 66.7%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    ennaku/ta venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **1**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 1) = 66.7%.
+
+**Explanation:** First switch missed, return to English preserved.
+
+</details>
+
+<details>
+<summary>extra_tail_switch — F1 80.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en ennaku/ta venum/ta coffee/en today/en nandri/ta
+```
+
+Reference switches: **2**. Output switches: **3**.
+Correct: **2**; extra: **1**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 1 + 0) = 80.0%.
+
+**Explanation:** An invented final switch lowers precision.
+
+</details>
+
+<details>
+<summary>same_tamil_loop — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en ennaku/ta venum/ta venum/ta venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **2**.
+Correct: **2**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 0 + 0) = 100.0%.
+
+**Explanation:** Repetition within one language adds words but no new transition.
+
+</details>
+
+<details>
+<summary>extra_oscillation — F1 66.7%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en extra/ta noise/en ennaku/ta venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **4**.
+Correct: **2**; extra: **2**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 2 + 0) = 66.7%.
+
+**Explanation:** Inserted Tamil-English detour adds two unmatched switches.
+
+</details>
+
+<details>
+<summary>duplicate_two_switch_passage — F1 50.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    hello/en friend/en ennaku/ta venum/ta coffee/en today/en hello/en friend/en ennaku/ta venum/ta coffee/en today/en hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+```
+
+Reference switches: **2**. Output switches: **6**.
+Correct: **2**; extra: **4**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 4 + 0) = 50.0%.
+
+**Explanation:** Two reference switches can match only once each across repeated copies.
+
+</details>
+
+<details>
+<summary>empty_output — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta coffee/en today/en
+Output:    (empty)
+```
+
+Reference switches: **2**. Output switches: **0**.
+Correct: **0**; extra: **0**; missed: **2**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 0 + 2) = 0.0%.
+
+**Explanation:** All reference events remain false negatives.
+
+</details>
+
+<details>
+<summary>empty_reference — F1 0.0%</summary>
+
+```text
+Reference: (empty)
+Output:    hello/en vanakkam/ta
+```
+
+Reference switches: **0**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **0**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 0) = 0.0%.
+
+**Explanation:** Every invented transition counts even on an empty reference.
+
+</details>
+
+<details>
+<summary>monolingual_false_island — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en today/en
+Output:    hello/en friend/ta today/en
+```
+
+Reference switches: **0**. Output switches: **2**.
+Correct: **0**; extra: **2**; missed: **0**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 2 + 0) = 0.0%.
+
+**Explanation:** Two spurious transitions on a no-switch reference.
+
+</details>
+
+<details>
+<summary>wrong_direction — F1 0.0%</summary>
+
+```text
+Reference: hello/en ennaku/ta
+Output:    hello/ta ennaku/en
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** Language direction is part of the event identity.
+
+</details>
+
+<details>
+<summary>third_language_detour — F1 0.0%</summary>
+
+```text
+Reference: hello/en ennaku/ta
+Output:    hello/en bonjour/fr ennaku/ta
+```
+
+Reference switches: **1**. Output switches: **2**.
+Correct: **0**; extra: **2**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 2 + 1) = 0.0%.
+
+**Explanation:** English-French-Tamil has no direct English-Tamil event.
+
+</details>
+
+<details>
+<summary>three_languages_partial_deletion — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en bonjour/fr ami/fr vanakkam/ta nanba/ta
+Output:    hello/en ami/fr nanba/ta
+```
+
+Reference switches: **2**. Output switches: **2**.
+Correct: **2**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 0 + 0) = 100.0%.
+
+**Explanation:** The same survival rule works with three languages.
+
+</details>
+
+<details>
+<summary>third_language_run_deleted — F1 0.0%</summary>
+
+```text
+Reference: hello/en bonjour/fr vanakkam/ta
+Output:    hello/en vanakkam/ta
+```
+
+Reference switches: **2**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **2**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 2) = 0.0%.
+
+**Explanation:** Do not invent an English-Tamil reference event after deleting French.
+
+</details>
+
+<details>
+<summary>no_english_pair — F1 100.0%</summary>
+
+```text
+Reference: bonjour/fr ami/fr hola/es amigo/es
+Output:    bonjour/fr amigo/es
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Shared-script languages without English use the same rule.
+
+</details>
+
+<details>
+<summary>changed_neutral_alignment_limit — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ,/neutral ennaku/ta venum/ta
+Output:    hello/en ./neutral venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** Known limitation: changed punctuation aligns as a substitution for a deleted Tamil word; the conservative rule rejects the boundary. **Known limitation; desired 1/0/0.**
+
+</details>
+
+<details>
+<summary>surviving_wrong_label_blocks_rescue — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en sam/en ennaku/ta
+Output:    hello/en friend/ta ennaku/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** After sam is deleted, the nearest survivor has the wrong label; do not search past it.
+
+</details>
+
+<details>
+<summary>same_count_early_boundary — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta
+Output:    hello/en friend/ta ennaku/ta venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** Correct switch count and direction at the wrong surviving word is insufficient.
+
+</details>
+
+<details>
+<summary>same_count_late_boundary — F1 0.0%</summary>
+
+```text
+Reference: hello/en friend/en ennaku/ta venum/ta
+Output:    hello/en friend/en ennaku/en venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** A late boundary is rejected when its aligned endpoint language is wrong.
+
+</details>
+
+<details>
+<summary>five_switches — F1 100.0%</summary>
+
+```text
+Reference: a/en b/ta c/en d/ta e/en f/ta
+Output:    a/en b/ta c/en d/ta e/en f/ta
+```
+
+Reference switches: **5**. Output switches: **5**.
+Correct: **5**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 5 / (2 × 5 + 0 + 0) = 100.0%.
+
+**Explanation:** All five directed events count independently.
+
+</details>
+
+<details>
+<summary>five_switches_missing_island — F1 50.0%</summary>
+
+```text
+Reference: a/en b/ta c/en d/ta e/en f/ta
+Output:    a/en b/ta e/en f/ta
+```
+
+Reference switches: **5**. Output switches: **3**.
+Correct: **2**; extra: **1**; missed: **3**.
+
+**Calculation:** 2 × 2 / (2 × 2 + 1 + 3) = 50.0%.
+
+**Explanation:** Two complete adjacent runs disappear: the middle predicted transition spans three reference boundaries and cannot be assigned locally; only the two outer events match.
+
+</details>
+
+<details>
+<summary>no_switches — F1 undefined</summary>
+
+```text
+Reference: hello/en friend/en
+Output:    hi/en friend/en
+```
+
+Reference switches: **0**. Output switches: **0**.
+Correct: **0**; extra: **0**; missed: **0**.
+
+**Calculation:** undefined: neither side has a switch.
+
+**Explanation:** Switch F1 is undefined, not perfect, when neither side switches.
+
+</details>
+
+<details>
+<summary>neutral_deleted_bridge — F1 100.0%</summary>
+
+```text
+Reference: hello/en friend/en ,/neutral ennaku/ta venum/ta
+Output:    hello/en ,/neutral venum/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **1**; extra: **0**; missed: **0**.
+
+**Calculation:** 2 × 1 / (2 × 1 + 0 + 0) = 100.0%.
+
+**Explanation:** Unchanged neutral punctuation and within-run deletions retain the switch.
+
+</details>
+
+<details>
+<summary>hallucination_masks_deletions_limit — F1 0.0%</summary>
+
+```text
+Reference: a/en b/en c/ta d/ta
+Output:    a/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en noise/en d/ta
+```
+
+Reference switches: **1**. Output switches: **1**.
+Correct: **0**; extra: **1**; missed: **1**.
+
+**Calculation:** 2 × 0 / (2 × 0 + 1 + 1) = 0.0%.
+
+**Explanation:** Known limitation: some hallucinated English words substitute for deleted reference tokens; the Tamil endpoint has a surviving wrong-language alignment. **Known limitation; desired 1/0/0.**
+
+</details>

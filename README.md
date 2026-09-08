@@ -8,6 +8,14 @@ Version **0.4.0 defaults to `boundary`**, specification `switchf1-boundary-v3`. 
 
 This is a proposed, documented evaluation method with executable tests. It is not an established industry standard or a claim to have invented code-switch evaluation. Its empirical validity across language pairs still needs independent annotation and human-agreement studies.
 
+## Start here
+
+- **[Full method review and walkthrough](docs/review.md):** what the score measures, how labels and alignment work, formulas, multiple switches, omissions, hallucinations and limitations.
+- **[All 34 worked examples](docs/scenario_audit.md#every-example-with-its-complete-labeled-text):** expand each case to see the complete reference and output, token-language labels, correct/extra/missed counts, F1 calculation and explanation.
+- **[Exact mathematical specification](docs/method.md):** the reproducible v3 matching and aggregation rules.
+- **[Runnable inputs](examples/adversarial.jsonl)** and **[basic examples](examples/pairs.jsonl):** use the same examples with the Python API or CLI.
+- **[Validation status](docs/validation.md):** what has been tested and which human/audio checks remain necessary.
+
 ## Background: speech across languages
 
 Multilingual speakers can move between languages within a conversation, a sentence, or even a short phrase. This practice, commonly called **code-switching**, is part of the speech that ASR systems need to represent. A speaker might use one language for the surrounding sentence and another for a familiar expression, a technical term, a quotation, or a change in emphasis. Research on speech transcripts documents motivations including expressing emotion, borrowing terms, humor and introducing a topic. [Belani and Flanigan, 2022](https://arxiv.org/abs/2212.08565)

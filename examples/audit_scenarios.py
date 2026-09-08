@@ -22,6 +22,14 @@ def main():
         'F1 = 2 TP / (2 TP + FP + FN); no events on either side gives undefined F1.','',
         '| Case | v2 TP/FP/FN | v3 TP/FP/FN | v3 F1 | Explanation |',
         '|---|---|---|---:|---|']
+    details=['', '## Every example, with its complete labeled text', '',
+        'Expand any case below. Each `word/language` entry labels one token;',
+        '`neutral` denotes an explicitly neutral token and `(empty)` means no tokens.',
+        'Long loops are shown in full so the displayed input is reproducible.', '',
+        'To inspect every alignment column and matched event as JSON:', '',
+        '```bash',
+        'switchf1 examples/adversarial.jsonl --output results/adversarial.json',
+        '```', '']
     for case in cases:
         old=score_utterance(case['reference'],case['hypothesis'],mode='boundary_v2')
         new=score_utterance(case['reference'],case['hypothesis'])
@@ -31,6 +39,18 @@ def main():
         reason=case['reason']
         if 'desired_counts' in case:reason+=' **Known limitation; desired '+counts(case['desired_counts'])+'.**'
         lines.append(f"| {case['id']} | {counts(old)} | {counts(new)} | {f1} | {reason} |")
+        def labeled(tokens):
+            return ' '.join(t['text']+'/'+(t['lang'] or 'neutral') for t in tokens) or '(empty)'
+        tp,fp,fn=(new[k] for k in ('tp','fp','fn'))
+        denominator=2*tp+fp+fn
+        calculation=f'2 × {tp} / (2 × {tp} + {fp} + {fn}) = {f1}' if denominator else 'undefined: neither side has a switch'
+        details += ['<details>',f"<summary>{case['id']} — F1 {f1}</summary>", '',
+            '```text','Reference: '+labeled(case['reference']),
+            'Output:    '+labeled(case['hypothesis']),'```','',
+            f"Reference switches: **{new['reference_events']}**. Output switches: **{new['hypothesis_events']}**.",
+            f'Correct: **{tp}**; extra: **{fp}**; missed: **{fn}**.', '',
+            '**Calculation:** '+calculation+'.', '', '**Explanation:** '+reason, '',
+            '</details>', '']
     lines += ['',
         'The complete token sequences and labels are in [adversarial.jsonl](../examples/adversarial.jsonl).',
         'Tests also enumerate 7,776 pure-deletion cases using an independent original-run',
@@ -44,7 +64,7 @@ def main():
         'This suite establishes reproducible behavior on declared examples, not that',
         'the metric recognizes spoken switches perfectly. [Independent audio and',
         'bilingual validation](validation.md) is still required.']
-    report='\n'.join(lines)+'\n'
+    report='\n'.join(lines+details).rstrip()+'\n'
     if args.markdown:args.markdown.write_text(report)
     else:print(report,end='')
     print(f"Checked {len(cases)} scenarios under {SPECIFICATIONS['boundary']}; two documented alignment limitations.")
