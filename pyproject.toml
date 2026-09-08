@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "switchf1"
+version = "0.1.0"
+description = "Auditable, language-agnostic evaluation of directed switches in labeled text"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []
+
+[project.scripts]
+switchf1 = "switchf1.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

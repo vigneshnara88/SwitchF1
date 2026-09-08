@@ -1,0 +1,6 @@
+{"id":"correct_en_fr","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}],"hypothesis":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}]}
+{"id":"reversed_languages","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}],"hypothesis":[{"text":"hello","lang":"fr"},{"text":"bonjour","lang":"en"}]}
+{"id":"wrong_words_same_shape","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}],"hypothesis":[{"text":"goodbye","lang":"en"},{"text":"salut","lang":"fr"}]}
+{"id":"extra_switch","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}],"hypothesis":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"},{"text":"again","lang":"en"}]}
+{"id":"monolingual_false_switch","reference":[{"text":"hello","lang":"en"}],"hypothesis":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"}]}
+{"id":"three_languages","reference":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"},{"text":"hallo","lang":"de"}],"hypothesis":[{"text":"hello","lang":"en"},{"text":"bonjour","lang":"fr"},{"text":"hallo","lang":"de"}]}
