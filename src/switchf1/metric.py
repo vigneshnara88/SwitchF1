@@ -1,10 +1,11 @@
-"""ASE-F1 specification v1. See docs/method.md for the complete contract."""
+"""Aligned boundary F1, with optional lexical anchoring. See docs/method.md."""
 from __future__ import annotations
 from dataclasses import dataclass, asdict
 import unicodedata
 
 UNKNOWN = frozenset({"und", "mul", "ambiguous"})
 MODES = frozenset({"anchored", "boundary"})
+SPECIFICATIONS = {"boundary": "switchf1-boundary-v1", "anchored": "ase-f1-v1"}
 
 @dataclass(frozen=True)
 class Token:
@@ -69,11 +70,11 @@ def _prf(tp,fp,fn):
         recall=tp/(tp+fn) if tp+fn else None,
         f1=2*tp/(2*tp+fp+fn) if 2*tp+fp+fn else None)
 
-def score_utterance(reference,hypothesis,*,mode="anchored",utterance_id=""):
+def score_utterance(reference,hypothesis,*,mode="boundary",utterance_id=""):
     """Score explicit Token objects or {text,lang} dictionaries.
 
-    anchored (primary): exact normalized lexical anchors AND direction/location.
-    boundary (diagnostic): same location/direction; anchor substitutions allowed.
+    boundary (primary): same aligned location/direction; substitutions allowed.
+    anchored (diagnostic): additionally requires exact normalized lexical anchors.
     """
     if mode not in MODES:raise ValueError(f"mode must be one of {sorted(MODES)}")
     ref,hyp=_tokens(reference,True),_tokens(hypothesis,False)
@@ -136,12 +137,13 @@ def aggregate(rows):
         unknown_hypothesis_tokens=sum(r['unknown_hypothesis_tokens'] for r in rows),by_direction=per_direction,
         aligned_token_language=dict(micro=token_micro,macro_f1=token_macro,per_language=token_scores))
 
-def evaluate(records,*,mode="anchored"):
+def evaluate(records,*,mode="boundary"):
     """Evaluate {id, reference: token list, hypothesis: token list} records."""
+    if mode not in MODES:raise ValueError(f"mode must be one of {sorted(MODES)}")
     records=list(records)
     if any(not all(k in r for k in ('id','reference','hypothesis')) for r in records):
         raise ValueError("Each record requires id, reference and hypothesis. Reference/hypothesis must be token lists with explicit text and lang, not plain ASR strings.")
     ids=[str(r['id']) for r in records]
     if len(ids)!=len(set(ids)):raise ValueError("Duplicate utterance IDs")
     rows=[score_utterance(r['reference'],r['hypothesis'],mode=mode,utterance_id=r['id']) for r in records]
-    return dict(specification="ase-f1-v1",mode=mode,metrics=aggregate(rows),utterances=rows)
+    return dict(specification=SPECIFICATIONS[mode],mode=mode,metrics=aggregate(rows),utterances=rows)

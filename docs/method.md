@@ -1,4 +1,4 @@
-# ASE-F1 v1: complete text-only specification
+# SwitchF1 boundary v1: complete text-only specification
 
 ## Inputs and claim
 
@@ -11,7 +11,7 @@ H=((h_1,\ell^H_1),\ldots,(h_m,\ell^H_m)).
 
 Each token contains text and an explicit language ID. IDs are fixed semantic names, preferably BCP-47 tags under one documented granularity policy. Do not permutation-map language names to maximize scores. Any number of languages is supported. Tokenization and contextual language annotation are benchmark inputs, not inferred from the model ranking.
 
-Primary claim: preservation of directed, locally correct switches in recognized text. This combines local lexical correctness with language structure. For pure language-identification experiments on identical text tokens, alignment is trivial and labels determine correctness. With ASR substitutions, ASE-F1 intentionally adds a lexical requirement. Use the companion boundary mode to inspect that distinction.
+Primary claim: preservation of directed language-switch boundaries at corresponding aligned positions in recognized text. The default `boundary` mode uses specification `switchf1-boundary-v1`. Exact local word recognition is not required, but lexical edit alignment still determines positional correspondence. For language-identification experiments on identical text tokens, alignment is trivial. The optional `anchored` diagnostic (`ase-f1-v1`) additionally requires correctly recognized local words.
 
 ## Normalization and alignment
 
@@ -31,15 +31,11 @@ e_R=(a_R(i),a_R(k),\ell^R_i,\ell^R_k,\nu(r_i),\nu(r_k)).
 
 Construct hypothesis events identically. The first two fields identify the aligned pair of boundary anchors, the next two give the ordered language transition, and the last two give normalized lexical anchors.
 
-A primary-mode match requires equality of **all six fields**. Therefore:
-
-1. Both sides are aligned to the same reference boundary anchors.
-2. The language change has the correct origin and destination.
-3. Both local words are recognized correctly under the fixed normalization.
+A primary `boundary` match requires equality of the **first four fields**: both alignment columns and both ordered language labels. The normalized words may differ under substitution. In optional `anchored` mode all six fields must match, adding exact normalized local words.
 
 Event positions are unique within an ordered token sequence, so exact equality creates a one-to-one matching without a greedy search. The same reference event cannot be credited multiple times. An unmatched reference event is FN; an unmatched predicted event is FP. A wrong event can contribute both one FP and one FN.
 
-In `boundary` diagnostic mode, compare only the first four fields. Substituted words with correct aligned language labels may then match. This is a different explicitly named metric.
+Alignment columns are shared positions after inserting gaps, not original token indices or timestamps. Arbitrarily long inserted prefixes can shift raw indices without destroying a correct boundary match. Insertions/deletions directly beside a boundary can change the pair of positions and prevent a match, even if the overall language sequence appears plausible. Version 1 has no positional tolerance and does not optimize alignment to maximize F1. See [worked hallucination examples](alignment.md).
 
 ## Unknowns, neutrality and speaker scope
 
@@ -72,7 +68,8 @@ The package additionally computes **aligned token-language** precision/recall/F1
 ## Known limits
 
 - Reference LID errors directly corrupt the score. Script-based labeling is only a restricted proxy.
-- Exact anchor matching can reject linguistically acceptable synonyms, transliteration variants, spelling variants and boundary-adjacent insertions/deletions. Freeze permitted conventions; do not tune exceptions on test outputs.
+- Both modes can reject boundary-adjacent insertions/deletions because boundary pairs must match exactly. Optional anchored mode also rejects different local words even if their languages are correct. Lexical variants can affect alignment in either mode. Freeze permitted conventions; do not tune exceptions on test outputs.
+- Repeated identical passages can have multiple optimal alignments. Fixed tie-breaking is reproducible but cannot identify the acoustically correct occurrence. A long same-language hallucination can leave boundary F1 perfect; WER/CER must accompany it.
 - An error inside a long monolingual span may leave every boundary intact. WER/CER and token-LID metrics remain necessary.
 - No timestamps means no acoustic localization or language-duration accuracy claim.
 - A transcript metric cannot establish comprehension of intent, emotional nuance or social code-switch norms.

@@ -7,7 +7,7 @@ from . import __version__,evaluate
 def main():
     p=argparse.ArgumentParser(description="Score directed switches in explicitly language-labeled text. No timestamps required.")
     p.add_argument('input',type=Path,help='JSONL with id, reference and hypothesis token arrays')
-    p.add_argument('--mode',choices=['anchored','boundary'],default='anchored')
+    p.add_argument('--mode',choices=['boundary','anchored'],default='boundary',help='boundary (default); anchored additionally requires exact local words')
     p.add_argument('--output',type=Path)
     args=p.parse_args()
     raw=args.input.read_bytes()
