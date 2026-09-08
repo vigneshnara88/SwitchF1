@@ -16,6 +16,8 @@ def normalize(text: str) -> str:
     return unicodedata.normalize("NFC", text).lower()
 
 def _tokens(items, reference):
+    if isinstance(items,(str,bytes)):
+        raise ValueError("A plain transcript has no token-language labels. Supply Token objects or {text,lang} dictionaries; see README 'Where do the labels come from?'")
     tokens=[]
     for item in items:
         token=item if isinstance(item,Token) else Token(text=item['text'],lang=item['lang'])
@@ -23,8 +25,8 @@ def _tokens(items, reference):
             raise ValueError("Every token needs nonempty text; use [] for an empty transcript")
         if token.lang is not None and (not isinstance(token.lang,str) or not token.lang.strip()):
             raise ValueError("lang must be an explicit nonempty label or null for neutral")
-        if reference and token.lang in UNKNOWN:
-            raise ValueError("Unresolved reference language; adjudicate it or predeclare an excluded region")
+        if token.lang in UNKNOWN:
+            raise ValueError("Unresolved language label on reference or hypothesis. Resolve labels before scoring; abstention must not hide false switches.")
         tokens.append(token)
     return tokens
 
@@ -88,12 +90,21 @@ def score_utterance(reference,hypothesis,*,mode="anchored",utterance_id=""):
     tp=len(matches)
     rl={t.lang for t in ref if t.lang is not None and t.lang not in UNKNOWN}
     hl={t.lang for t in hyp if t.lang is not None and t.lang not in UNKNOWN}
+    token_counts={lang:dict(tp=0,fp=0,fn=0) for lang in sorted(rl|hl)}
+    for ri,hi in alignment:
+        gold=ref[ri].lang if ri is not None else None
+        predicted_lang=hyp[hi].lang if hi is not None else None
+        if gold==predicted_lang and gold is not None:
+            token_counts[gold]['tp']+=1
+        else:
+            if gold is not None:token_counts[gold]['fn']+=1
+            if predicted_lang is not None:token_counts[predicted_lang]['fp']+=1
     return dict(id=utterance_id,mode=mode,**_prf(tp,len(he)-tp,len(re)-tp),
         reference_events=len(re),hypothesis_events=len(he),
         reference_no_switch=not bool(re),false_switch_on_no_switch=not re and bool(he),
         language_presence_exact=rl==hl,unknown_hypothesis_tokens=sum(t.lang in UNKNOWN for t in hyp),
         reference_tokens=len(ref),hypothesis_tokens=len(hyp),
-        ref_events=re,hyp_events=he,matches=matches,alignment=alignment)
+        ref_events=re,hyp_events=he,matches=matches,alignment=alignment,token_language_counts=token_counts)
 
 def aggregate(rows):
     """Pool event counts; never average utterance F1 or discard no-switch rows."""
@@ -110,16 +121,27 @@ def aggregate(rows):
         per_direction[' -> '.join(direction)]=_prf(nt,nh-nt,nr-nt)
     no_switch=sum(r['reference_no_switch'] for r in rows)
     false_no_switch=sum(r['false_switch_on_no_switch'] for r in rows)
+    languages=sorted({lang for r in rows for lang in r['token_language_counts']})
+    token_scores={}
+    for lang in languages:
+        counts={k:sum(r['token_language_counts'].get(lang,{}).get(k,0) for r in rows) for k in ['tp','fp','fn']}
+        token_scores[lang]=_prf(**counts)
+    token_micro=_prf(**{k:sum(v[k] for v in token_scores.values()) for k in ['tp','fp','fn']})
+    token_macro=sum(v['f1'] for v in token_scores.values())/len(token_scores) if token_scores else None
     return dict(rows=len(rows),mode=next(iter(modes)) if modes else None,**_prf(tp,fp,fn),
         reference_events=tp+fn,hypothesis_events=tp+fp,
         reference_no_switch_rows=no_switch,false_switch_on_no_switch_rows=false_no_switch,
         false_switch_on_no_switch_rate=false_no_switch/no_switch if no_switch else None,
         language_presence_exact_rate=sum(r['language_presence_exact'] for r in rows)/len(rows) if rows else None,
-        unknown_hypothesis_tokens=sum(r['unknown_hypothesis_tokens'] for r in rows),by_direction=per_direction)
+        unknown_hypothesis_tokens=sum(r['unknown_hypothesis_tokens'] for r in rows),by_direction=per_direction,
+        aligned_token_language=dict(micro=token_micro,macro_f1=token_macro,per_language=token_scores))
 
 def evaluate(records,*,mode="anchored"):
     """Evaluate {id, reference: token list, hypothesis: token list} records."""
-    records=list(records);ids=[str(r['id']) for r in records]
+    records=list(records)
+    if any(not all(k in r for k in ('id','reference','hypothesis')) for r in records):
+        raise ValueError("Each record requires id, reference and hypothesis. Reference/hypothesis must be token lists with explicit text and lang, not plain ASR strings.")
+    ids=[str(r['id']) for r in records]
     if len(ids)!=len(set(ids)):raise ValueError("Duplicate utterance IDs")
     rows=[score_utterance(r['reference'],r['hypothesis'],mode=mode,utterance_id=r['id']) for r in records]
     return dict(specification="ase-f1-v1",mode=mode,metrics=aggregate(rows),utterances=rows)

@@ -47,7 +47,7 @@ In `boundary` diagnostic mode, compare only the first four fields. Substituted w
 
 Reference labels `und`, `mul` and `ambiguous` fail validation: adjudicate them, split a mixed token according to a predeclared tokenization policy, or define an exclusion region before running the scorer. Excluded regions must be split into independent records so that no artificial event bridges them, and excluded support must be reported externally. Do not exclude difficult regions after seeing model errors.
 
-Hypothesis `und`/`mul`/`ambiguous` tokens break the resolved-language sequence and are counted as unknowns. The scorer does not bridge them into apparently valid events. Resulting missed reference switches remain FN. Supply all requested utterances and inspect unknown counts; a benchmark adapter must validate ID coverage.
+Hypothesis `und`/`mul`/`ambiguous` labels are also rejected. Silently dropping them could remove false events and improve F1 through abstention. Resolve labels with a fixed, validated independent annotation/LID process before headline scoring. Neutral `null` is allowed only under a predeclared shared policy, never as an arbitrary abstention class. Supply all requested utterances; a benchmark adapter must validate ID coverage. Experiments on abstention itself require a separate coverage-aware evaluation, not this fully labeled protocol.
 
 One record represents one independent evaluated text stream. If the intended claim is **within-speaker** code-switching, split speaker turns or otherwise provide separate speaker streams before evaluation. A language change between two speakers is not evidence that either individual code-switched. No cross-record events are created.
 
@@ -66,6 +66,8 @@ P=TP/(TP+FP),\quad R=TP/(TP+FN),\quad F1=2TP/(2TP+FP+FN).
 Pool counts across all utterances, including no-switch references. Precision is undefined (`null`) if there are no predicted events; recall is undefined if there are no reference events. F1 is 0 if any events exist but none match. It is undefined if neither side has events. Never award perfect switching performance to an all-no-switch corpus.
 
 Also report each language direction separately, language-presence exact rate, the number of unknown hypothesis tokens, and the proportion of no-switch-reference utterances with a predicted switch. Language-presence rate is only a coverage diagnostic: it does not verify each word's language.
+
+The package additionally computes **aligned token-language** precision/recall/F1. For each named language L and each edit-alignment column, a correct L/L pair adds TP(L), a predicted L with a different or absent reference label adds FP(L), and a reference L with a different or absent prediction adds FN(L). Neutral/neutral columns add no counts. Pool each language's counts, report their micro F1, and average the per-language F1 values for macro F1 over languages present on either side. This catches entirely wrong monolingual labeling even when switch F1 is undefined. With ASR insertions/deletions this remains alignment-dependent; on identical token sequences it evaluates ordinary token-language predictions. Word substitutions retaining correct language labels can receive token-language credit even though they fail ASE lexical anchoring.
 
 ## Known limits
 

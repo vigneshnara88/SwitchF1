@@ -33,9 +33,9 @@ class MetricTests(unittest.TestCase):
     def test_neutral_punctuation_bridged(self):
         h=[self.ref[0],Token(',',None),self.ref[1]]
         self.assertEqual(score_utterance(self.ref,h)['f1'],1)
-    def test_unknown_hypothesis_breaks_sequence(self):
-        r=score_utterance(self.ref,[self.ref[0],Token('?', 'und'),self.ref[1]])
-        self.assertEqual(r['tp'],0);self.assertEqual(r['unknown_hypothesis_tokens'],1)
+    def test_unknown_hypothesis_cannot_hide_false_switch(self):
+        with self.assertRaises(ValueError):
+            score_utterance(self.ref,self.ref+[Token('again','und')])
     def test_unknown_reference_fails(self):
         with self.assertRaises(ValueError):score_utterance([Token('x','und')],[])
     def test_unicode_marks_preserved(self):
@@ -71,6 +71,14 @@ class MetricTests(unittest.TestCase):
     def test_no_input_mutation(self):
         r=[{'text':'hello','lang':'en'},{'text':'bonjour','lang':'fr'}];original=copy.deepcopy(r)
         score_utterance(r,r);self.assertEqual(r,original)
+    def test_all_wrong_monolingual_labels_fail_token_metric(self):
+        r=score_utterance([Token('hello','en'),Token('friend','en')],[Token('hello','fr'),Token('friend','fr')])
+        result=aggregate([r])
+        self.assertIsNone(result['f1'])
+        self.assertEqual(result['aligned_token_language']['macro_f1'],0)
+    def test_plain_text_error_is_actionable(self):
+        with self.assertRaisesRegex(ValueError,'plain transcript'):
+            score_utterance('hello bonjour','hello bonjour')
     def test_duplicates_fail(self):
         record={'id':'x','reference':[],'hypothesis':[]}
         with self.assertRaises(ValueError):evaluate([record,record])
