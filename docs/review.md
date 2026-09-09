@@ -297,6 +297,46 @@ independent bilingual/audio validation and transfer studies establish empirical
 validity. Report WER/CER, precision/recall, event support, directional results and
 hallucination diagnostics alongside it. See the [validation plan](validation.md).
 
+## Long transcripts, timing and how to interpret the score
+
+**Treat SwitchF1 as an indicative statistic, not ground truth about actual spoken
+switches.** It measures agreement under a specified text-alignment and language-
+label policy. Even a perfect score cannot establish that every switch occurred
+at exactly the right point in the audio.
+
+Longer **individual transcripts** can make the result harder to interpret and
+less reliable as a proxy for precise switch localization. They offer more scope
+for repeated phrases, accumulated omissions and hallucinations to make different
+parts of the output look like plausible matches for the same reference passage.
+Text alignment may therefore assign a switch to the wrong occurrence. Length
+alone does not guarantee failure, and we have not measured a universal length
+threshold or a fixed decline in validity. Adding more independently evaluated
+short clips is different from aligning one increasingly long transcript.
+
+Reliable word-level timestamps for both reference and output could constrain
+matches to the same audio region and support **more precise temporal evaluation**.
+This is a plausible improvement to evaluate, not a measured accuracy gain from
+this package. Coarse segment timestamps, inaccurate forced alignments, or times
+assigned to hallucinated words can still be misleading. Reference boundaries
+must be checked against audio, and a time-aware metric would need a declared
+timing tolerance and its own validation. The current SwitchF1 function accepts
+text and language labels only; it does not score timing.
+
+Use fixed, meaningful utterance/speaker units where possible and report the unit
+length distribution. Avoid cutting at switches or discarding switches across
+cuts merely to improve scores: this scorer creates no events between records,
+so segmentation changes the evaluated event set and must be documented. Inspect
+ambiguous alignments and report WER/CER and hallucination diagnostics alongside F1.
+
+Suggested reporting caveat:
+
+> SwitchF1 is an indicative measure of aligned language-switch preservation in
+> text. Its interpretation depends on language-label quality and text alignment,
+> which can be ambiguous in longer transcripts with repetitions, omissions or
+> hallucinations. It does not establish exact spoken-switch locations. Reliable
+> word-level timing could enable more precise localization in a separately
+> validated evaluator; timestamps are not used by the current metric.
+
 ## Versioning and further reading
 
 | Mode in package 0.4.0 | Specification | Criterion |

@@ -8,6 +8,16 @@ Version **0.4.0 defaults to `boundary`**, specification `switchf1-boundary-v3`. 
 
 This is a proposed, documented evaluation method with executable tests. It is not an established industry standard or a claim to have invented code-switch evaluation. Its empirical validity across language pairs still needs independent annotation and human-agreement studies.
 
+> **Interpretation caveat:** SwitchF1 is an indicative statistic of language-switch
+> preservation in text, not ground truth about the exact switches in speech.
+> Longer individual transcripts can make correspondence less reliable, especially
+> with repeated passages, hallucinations or omissions: a matched text transition
+> does not prove that the model switched at the correct moment in the audio.
+> Reliable word-level timestamps on both sides could support more precise
+> localization in a separately validated time-aware evaluator. The current scorer
+> does not use timestamps, and timestamps alone do not guarantee correctness.
+> See [long transcripts and timing](docs/review.md#long-transcripts-timing-and-how-to-interpret-the-score).
+
 ## Start here
 
 - **[Full method review and walkthrough](docs/review.md):** what the score measures, how labels and alignment work, formulas, multiple switches, omissions, hallucinations and limitations.

@@ -116,6 +116,20 @@ about acoustic switch timing, internal language detection, or understanding why
 the speaker switched. See the [scenario audit](scenario_audit.md) and
 [human validation plan](validation.md).
 
+## Longer text and possible timing support
+
+Longer individual transcripts can contain more competing repeated passages and
+accumulated insertion/deletion errors. Consequently, an aligned match can be less
+informative about where a switch actually happened in speech. This is a potential
+alignment limitation, not a proven rule that every longer transcript scores less
+accurately. **SwitchF1 remains indicative, not ground truth.**
+
+Reliable word-level timestamps on both sides could help distinguish occurrences
+by audio position in a validated temporal evaluator. The current scorer does not
+use them; inaccurate timestamps or coarse segment timing would not establish exact
+switch locations. See the [full caveat](review.md#long-transcripts-timing-and-how-to-interpret-the-score),
+including how segmentation can omit cross-record switches.
+
 ## Reproduce earlier definitions
 
 - `boundary`: current v3, within-run deletion and insertion tolerance.

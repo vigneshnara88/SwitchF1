@@ -131,6 +131,20 @@ The package additionally computes **aligned token-language** precision/recall/F1
 
 ## Known limits
 
+SwitchF1 is an **indicative statistic**, not ground truth about the exact language
+switches in speech. Longer individual sequences can increase positional ambiguity,
+especially when repetitions, omissions and hallucinations create competing lexical
+correspondences. No universal maximum length or monotonic loss of validity has
+been established. More independent short records are not the same as a longer
+alignment sequence.
+
+Reliable reference and hypothesis word timestamps could constrain correspondence
+to audio regions in a separately specified time-aware metric. Such a metric would
+need validated timing, audio-checked boundaries and a declared matching tolerance;
+coarse or erroneous timestamps do not guarantee improvement. Current SwitchF1
+uses no timestamps and makes no claim of exact temporal detection. See the
+[interpretation and segmentation caveat](review.md#long-transcripts-timing-and-how-to-interpret-the-score).
+
 - Reference LID errors directly corrupt the score. Script-based labeling is only a restricted proxy.
 - The primary mode tolerates insertions and within-run deletions only inside a supported interval. It rejects wholly deleted runs and surviving mislabeled support; it does not solve all ASR alignment failures. Exact-boundary and anchored modes retain stricter positional requirements. Lexical variants can affect alignment in every mode.
 - Inserted words and omitted words can align as substitutions. A wrong-language substitute then blocks support even when a human could recognize the broad switch. Changed neutral punctuation can cause a similar alignment failure. These are documented counterexamples, not silently repaired by optimizing language alignment.
