@@ -50,6 +50,14 @@ Precision asks how many predicted transitions correspond to real reference trans
 
 The purpose of publishing SwitchF1 is to make that definition **explicit, reproducible and reusable**: shared formulas, an executable evaluator, inspectable alignments, and tests for cases that otherwise lead to inconsistent scoring. The same rule should apply to every model and language pair under a declared annotation policy. SwitchF1 complements corpus WER/CER, token-language scores and hallucination diagnostics. It gives a focused view of switching behavior that an overall transcription score alone does not supply.
 
+## How this connects to generation and language documentation
+
+The companion [code-switching generation project](https://github.com/vigneshnara88/code-switching-generation) asks how mixed-language examples can reflect explicit linguistic guidance and speaker review. SwitchF1 addresses a different part of the workflow: after speech has been transcribed, can we inspect whether the recognizer retained the observable changes of language?
+
+That matters for documenting multilingual speech. A transcript that renders everything in one language can lose evidence of the speaker's original language choices, even if parts of the meaning survive. A switch score supplies one focused check on that representation. The social meaning of a switch, the naturalness of a generated example and the quality of a language archive still require contextual and speaker-led review.
+
+Together, the projects reflect a broader interest in language technology that can work with the way people combine English and other community languages. The generation resources make choices inspectable; the evaluator makes one aspect of preservation measurable. Neither is a substitute for understanding the speakers and context behind the text.
+
 ## Why preserving switches matters
 
 Potential downstream applications include:
