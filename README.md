@@ -4,6 +4,10 @@
 
 SwitchF1 is a dependency-free Python evaluator for **aligned language-switch boundary F1**. It compares reference and predicted text with explicit token-language labels. A correct event needs the same directed language change inside the corresponding supported boundary interval after text alignment. Same-language insertions and omitted words within the two adjacent language stretches do not automatically invalidate it; extra language transitions still count as errors. The neighboring words may be substituted: exact word recognition is not required by the primary boundary score. It requires no timestamps and makes no assumption that different languages use different scripts.
 
+I developed SwitchF1 through my agentic code-switching work, initially motivated by English–Tamil speech. I wanted to evaluate a specific ASR capability: whether a recognizer preserves a speaker's changes of language in its transcript. Ordinary word error rate (WER) measures word substitutions, insertions and deletions, but does not directly report whether those directed language transitions survive. SwitchF1 makes that question explicit alongside word accuracy.
+
+My contribution is the application and scoring framework: defining directed switch events, aligning reference and predicted text, matching events one-to-one, and applying ordinary precision, recall and F1 to the resulting counts. F1 itself is the standard measure; the project specifies what counts as a correct, extra or missed switch and provides an implementation that others can inspect and reuse.
+
 Version **0.4.0 defaults to `boundary`**, specification `switchf1-boundary-v3`. Use `boundary_v2` for the insertion-only v2 rule, `boundary_exact` for the earlier exact-position rule (`switchf1-boundary-v1`) or `anchored` for exact positions plus exact local words (`ase-f1-v1`). See [migration notes](CHANGELOG.md); always record package version and mode.
 
 This is a proposed, documented evaluation method with executable tests. It is not an established industry standard or a claim to have invented code-switch evaluation. Its empirical validity across language pairs still needs independent annotation and human-agreement studies.
@@ -178,6 +182,8 @@ alignment. **This remains a text-based proxy, not a verified acoustic detector.*
 ## Formula and reporting
 
 After per-utterance lexical alignment, construct directed events from successive non-neutral language-labeled tokens. Match events one-to-one under the rules in [the method specification](docs/method.md).
+
+These are ordinary precision, recall and F1 applied to switch events: TP counts matched reference/predicted events, FP counts unmatched predicted events, and FN counts unmatched reference events. When precision and recall have a positive sum, F1 is their harmonic mean, `2PR / (P + R)`. The count formula below also gives zero when events exist but none match.
 
 $$
 P=\frac{TP}{TP+FP},\quad R=\frac{TP}{TP+FN},\quad
